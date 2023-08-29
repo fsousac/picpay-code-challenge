@@ -20,15 +20,21 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransactionService {
+    @Autowired
     private UserService userService;
 
+    @Autowired
     private TransationRepository repository;
 
+    @Autowired
     private RestTemplate restTemplate;
 
-    public void createTransaction(TransactionDTO transactionDTO) throws Exception {
+    @Autowired
+    private NotificationService notificationService;
+
+    public Transaction createTransaction(TransactionDTO transactionDTO) throws Exception {
         User sender = this.userService.findUserById(transactionDTO.senderId());
-        User reciever = this.userService.findUserById(transactionDTO.recieverId());
+        User receiver = this.userService.findUserById(transactionDTO.receiverId());
         userService.validateTransaction(sender,transactionDTO.value());
         boolean isAuthorized = this.authorizeTransaction(sender,transactionDTO.value());
 
@@ -39,15 +45,19 @@ public class TransactionService {
         var newTransaction = new Transaction();
         newTransaction.setAmount(transactionDTO.value());
         newTransaction.setSender(sender);
-        newTransaction.setReceiver(reciever);
+        newTransaction.setReceiver(receiver);
         newTransaction.setTimestamp(LocalDateTime.now());
 
         sender.setBalance(sender.getBalance().subtract(transactionDTO.value()));
-        reciever.setBalance(reciever.getBalance().add(transactionDTO.value()));
+        receiver.setBalance(receiver.getBalance().add(transactionDTO.value()));
 
         this.repository.save(newTransaction);
         this.userService.saveUser(sender);
-        this.userService.saveUser(reciever);
+        this.userService.saveUser(receiver);
+
+        this.notificationService.sendNotification(sender,"Transação realizada com sucesso");
+        this.notificationService.sendNotification(receiver,"Transação recebida com sucesso");
+        return newTransaction;
     }
     public boolean authorizeTransaction(User sender, BigDecimal value){
         ResponseEntity<Map> authorizationResponse = restTemplate.getForEntity("https://run.mocky.io/v3/8fafdd68-a090-496f-8c9a-3442cf30dae6", Map.class);
